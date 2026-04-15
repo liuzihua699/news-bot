@@ -32,6 +32,7 @@ export function generateMarkdown(date, data, summary = null, timestamp = null, t
       // 标注来源类型
       const sourceTypeLabel = item.sourceType === 'arxiv' ? 'arXiv（论文摘要）' :
                              item.sourceType === 'blog' ? '博客' :
+                             item.sourceType === 'community' ? '社区精选' :
                              item.sourceType === 'news' ? '新闻' : '未知';
       
       md += `  来源：${item.source} (${sourceTypeLabel})  \n`;

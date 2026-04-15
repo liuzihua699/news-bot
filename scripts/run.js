@@ -53,7 +53,7 @@ for (const block of SOURCES) {
 
     // 根据源类型决定抓取数量：arXiv 抓2个（补充型），其他抓3-5个（稳定输出）
     const isArxiv = isArxivSource(src.name);
-    const maxItems = isArxiv ? 2 : (src.type === 'blog' ? 4 : 3);
+    const maxItems = isArxiv ? 2 : (src.type === 'community' ? 5 : (src.type === 'blog' ? 4 : 3));
     const selectedItems = feedItems.slice(0, maxItems);
     
     console.log(`  📰 Selected ${selectedItems.length} items (${isArxiv ? 'arXiv补充型' : '稳定输出型'}):`);

@@ -110,13 +110,15 @@ export async function generateSummary(newsData, timestamp, maxRetries = 5) {
 请为以上新闻生成一份简洁的今日总结，包括：
 1. 今日最重要的技术趋势和热点（分点描述）
 2. 值得关注的研究方向或突破
-3. 简要的分析或展望
-4. 对于开发者、研究人员、学生等不同角色，给出不同的建议和指导。
+3. 中文技术社区热议话题（知乎热门讨论、阮一峰博客观点、美团技术实践等）
+4. 简要的分析或展望
+5. 对于开发者、研究人员、学生等不同角色，给出不同的建议和指导
 
-要求：语言专业，并且要富含技术性，可以有趣味性，但要符合事实，要用通俗易懂的语言。用中文输出，600-1200字左右，根据实际情况调整。`;
+要求：语言专业，并且要富含技术性，可以有趣味性，但要符合事实，要用通俗易懂的语言。
+注意区分国际前沿动态和国内技术实践，两者兼顾。用中文输出，800-1500字左右，根据实际情况调整。`;
 
   const basePromptLength = basePromptPrefix.length + basePromptSuffix.length;
-  const MAX_TOTAL_LENGTH = 30000;
+  const MAX_TOTAL_LENGTH = 60000;
   const availableLength = MAX_TOTAL_LENGTH - basePromptLength;
 
   console.log(`   📏 基础提示词长度: ${basePromptLength} 字符`);

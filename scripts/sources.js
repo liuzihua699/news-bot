@@ -2,7 +2,8 @@
 const FULLTEXT_WHITELIST = [
   "research.google",
   "github.blog",
-  "blog.rust-lang.org"
+  "blog.rust-lang.org",
+  "tech.meituan.com"
 ];
 
 // 检查URL是否在白名单中
@@ -65,6 +66,36 @@ export const SOURCES = [
     sources: [
       { name: "GitHub Blog", url: "https://github.blog/rss", type: "blog" },
       { name: "Hacker News", url: "https://hnrss.org/frontpage", type: "news" }
+    ]
+  },
+  {
+    category: "阮一峰的网络日志",
+    sources: [
+      { name: "阮一峰", url: "https://feeds.feedburner.com/ruanyifeng", type: "blog" }
+    ]
+  },
+  {
+    category: "美团技术团队",
+    sources: [
+      { name: "美团技术", url: "https://tech.meituan.com/feed/", type: "blog" }
+    ]
+  },
+  {
+    category: "国内新闻",
+    sources: [
+      { name: "南方周末", url: "https://feedx.net/rss/infzm.xml", type: "news" }
+    ]
+  },
+  {
+    category: "国际新闻",
+    sources: [
+      { name: "联合早报", url: "https://plink.anyfeeder.com/zaobao/realtime/world", type: "news" }
+    ]
+  },
+  {
+    category: "知乎日报",
+    sources: [
+      { name: "知乎日报", url: "https://plink.anyfeeder.com/zhihu/daily", type: "community" }
     ]
   }
 ];
