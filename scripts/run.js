@@ -8,6 +8,7 @@ import { fetchRSS } from "./fetch-rss.js";
 import { fetchArticleContent } from "./fetch-content.js";
 import { generateMarkdown } from "./generate-md.js";
 import { generateSummary } from "./generate-summary.js";
+import { translateSnippets } from "./translate.js";
 
 // 启用 dayjs 的 timezone 插件
 dayjs.extend(utc);
@@ -119,6 +120,15 @@ console.log(`📊 数据统计:`);
 console.log(`   - 分类数量: ${results.length}`);
 console.log(`   - 文章总数: ${totalItems}`);
 console.log(`${'='.repeat(60)}\n`);
+
+// 翻译英文摘要为中文
+try {
+  console.log(`🌐 开始翻译英文摘要...`);
+  await translateSnippets(results);
+} catch (error) {
+  console.error(`❌ 翻译过程异常:`, error.message);
+  console.log(`⚠️  将使用原文继续生成报告`);
+}
 
 // 生成 LLM 摘要（带重试机制）
 let summary = null;
