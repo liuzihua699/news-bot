@@ -648,9 +648,10 @@ const server = http.createServer((req, res) => {
   res.end("Not Found");
 });
 
-server.listen(PORT, () => {
+const HOST = process.env.HOST || "0.0.0.0";
+server.listen(PORT, HOST, () => {
   console.log(`\n🚀 日报预览服务器已启动`);
-  console.log(`   📖 访问地址: http://localhost:${PORT}`);
+  console.log(`   📖 访问地址: http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
   console.log(`   📂 日报目录: ${DAILY_DIR}`);
   console.log(`   按 Ctrl+C 停止服务器\n`);
 });

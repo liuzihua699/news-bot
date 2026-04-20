@@ -6,6 +6,7 @@
   "main": "scripts/run.js",
   "scripts": {
     "start": "node scripts/run.js",
+    "daily": "node scripts/daily.js",
     "preview": "node server.js"
   },
   "keywords": [
@@ -21,7 +22,10 @@
     "dayjs": "^1.11.10",
     "openai": "^4.20.0",
     "cheerio": "^1.0.0-rc.12",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^6.9.0",
+    "marked": "^12.0.0",
+    "dotenv": "^16.4.0"
   }
 }
 

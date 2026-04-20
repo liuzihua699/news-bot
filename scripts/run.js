@@ -14,19 +14,14 @@ import { translateSnippets } from "./translate.js";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const today = dayjs().format("YYYY-MM-DD");
-const timestamp = new Date().toISOString();
+export async function run() {
+  const today = dayjs().format("YYYY-MM-DD");
+  const timestamp = new Date().toISOString();
 
-// 判断是上午还是下午
-// GitHub Actions 运行在 UTC 时区：
-// - 09:00 UTC+8 = 01:00 UTC → morning
-// - 21:00 UTC+8 = 13:00 UTC → evening
-const utcHour = dayjs().utc().hour();
-const timeSlot = utcHour < 12 ? 'morning' : 'evening';  // 01:00 UTC = morning, 13:00 UTC = evening
-const timeSlotLabel = utcHour < 12 ? '上午' : '晚上';
-
-// 获取北京时间用于显示
-const beijingTime = dayjs().tz('Asia/Shanghai');
+  const utcHour = dayjs().utc().hour();
+  const timeSlot = utcHour < 12 ? 'morning' : 'evening';
+  const timeSlotLabel = utcHour < 12 ? '上午' : '晚上';
+  const beijingTime = dayjs().tz('Asia/Shanghai');
 
 console.log(`\n${'='.repeat(60)}`);
 console.log(`📰 科研 & 技术热点日报 - ${today} ${timeSlotLabel}`);
@@ -168,6 +163,12 @@ console.log(`   📏 文件大小: ${fileSize} KB`);
 console.log(`⏰ 结束时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
 console.log(`${'='.repeat(60)}\n`);
 
-// 强制退出，确保脚本正常结束
-process.exit(0);
+  return { filePath: out, filename, today, timeSlotLabel };
+}
+
+// 直接运行兼容：node scripts/run.js
+const isDirectRun = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+if (isDirectRun) {
+  run().then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1); });
+}
 
