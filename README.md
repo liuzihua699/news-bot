@@ -1,11 +1,13 @@
 # 📰 科研 & 技术热点日报机器人
 
-自动抓取每日热点新闻、市场信息的 GitHub Actions 机器人。
+自动抓取每日热点新闻、市场信息，并生成日报/周报的 GitHub Actions 机器人。
 
 ## ✨ 功能特性
 
 - 🤖 **自动运行**：每天定时抓取热点新闻和技术资讯（UTC+8 09:00 和 21:00）
 - 📅 **每日存档**：自动生成 `daily/YYYY-MM-DD.md` 文件
+- 🗂️ **结构化归档**：日报会同步落地 `daily-data/*.json`，供周报聚合使用
+- 🗞️ **周报生成**：基于一周日报归档聚合去重，生成 `weekly/*.md`
 - 🔥 **多源聚合**：整合 arXiv、技术博客、Hacker News 等多个信息源
 - 📝 **结构化输出**：生成清晰的 Markdown 格式日报
 - 🧠 **AI 摘要**：使用硅基流动 GLM-4.7 模型生成今日新闻总结
@@ -17,7 +19,8 @@
 news-bot/
 ├── .github/
 │   └── workflows/
-│       └── daily.yml          # GitHub Actions 工作流
+│       ├── daily.yml          # GitHub Actions 日报工作流
+│       └── weekly.yml         # GitHub Actions 周报工作流
 ├── scripts/
 │   ├── fetch-rss.js           # RSS 抓取模块
 │   ├── sources.js             # 信息源配置
@@ -25,7 +28,8 @@ news-bot/
 │   ├── generate-summary.js    # LLM 摘要生成模块
 │   └── run.js                 # 主执行脚本
 ├── daily/
-│   └── .gitkeep               # 保持目录结构
+├── daily-data/
+├── weekly/
 ├── package.json
 └── README.md
 ```
@@ -62,8 +66,26 @@ news-bot/
 # 安装依赖
 npm install
 
-# 运行脚本
+# 运行日报
 npm start
+
+# 运行周报
+npm run weekly:generate
+
+# 按日期范围回填日报（近似历史重建）
+npm run backfill:daily -- --from 2026-04-01 --to 2026-04-22 --slot evening
+
+# 单独发送最新日报的邮件和钉钉
+npm run notify
+
+# 单独发送最新周报的邮件和钉钉
+npm run notify:weekly
+
+# 只发送指定周报到邮件
+npm run notify -- --type weekly --slug 2026-04-18_to_2026-04-24 --channel email
+
+# 只发送指定日报到钉钉
+npm run notify -- --type daily --slug 2026-04-22-evening --channel dingtalk
 ```
 
 ### GitHub Actions
@@ -93,7 +115,7 @@ npm start
 
 ## 📝 输出示例
 
-每日生成的 Markdown 文件包含：
+日报生成的 Markdown 文件包含：
 
 ```markdown
 # 🧠 科研 & 技术热点日报
@@ -134,6 +156,31 @@ _自动生成 · GitHub Actions_
 ```
 
 ## ⚙️ 高级配置
+
+### 周报生成
+
+周报默认在周五晚间生成，统计窗口为“上周六到本周五”，从 `daily-data/` 中读取这段时间内的日报结构化归档，做去重、聚合和趋势提炼后输出到 `weekly/`。
+
+### 回填日报
+
+可以使用 `npm run backfill:daily -- --from YYYY-MM-DD --to YYYY-MM-DD --slot evening` 回填指定日期范围的日报。
+
+注意：
+- 回填依赖各 RSS 源当前仍能返回对应日期的历史条目
+- 因此它是“近似历史重建”，不是对过去某天真实抓取结果的完整复刻
+- 如果源站已经不保留对应日期内容，生成结果会偏少甚至为空
+
+### 单独发送通知
+
+可以使用 `npm run notify` 单独对已经存在的报告文件发送通知，而不重新生成内容。
+
+支持参数：
+- `--type daily|weekly`：报告类型，默认 `daily`
+- `--slug <slug>`：指定报告 slug，例如 `2026-04-22-evening` 或 `2026-04-18_to_2026-04-24`
+- `--file <path>`：直接指定 markdown 文件路径
+- `--channel all|email|dingtalk`：发送渠道，默认 `all`
+
+如果不传 `--slug` 和 `--file`，脚本会自动发送该类型的最新一份报告。
 
 ### 自定义信息源
 

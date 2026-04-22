@@ -1,15 +1,18 @@
 import fs from "fs";
 import { marked } from "marked";
 import nodemailer from "nodemailer";
+import { REPORT_TYPES, getReportTitle } from "./report-utils.js";
 
 /**
- * 发送日报邮件
+ * 发送报告邮件
  * @param {Object} options
  * @param {string} options.filePath - markdown 文件路径
- * @param {string} options.today - 日期 YYYY-MM-DD
- * @param {string} options.timeSlotLabel - 上午/晚上
+ * @param {string} [options.reportType] - daily/weekly
+ * @param {string} [options.today] - 日期 YYYY-MM-DD
+ * @param {string} [options.timeSlotLabel] - 上午/晚上
+ * @param {string} [options.label] - 展示标签
  */
-export async function sendEmail({ filePath, today, timeSlotLabel }) {
+export async function sendEmail({ filePath, reportType = REPORT_TYPES.DAILY, today, timeSlotLabel, label }) {
   const host = process.env.EMAIL_SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.EMAIL_SMTP_PORT || "465");
   const user = process.env.EMAIL_USER;
@@ -32,7 +35,8 @@ export async function sendEmail({ filePath, today, timeSlotLabel }) {
 
   const md = fs.readFileSync(filePath, "utf-8");
   const htmlBody = marked.parse(md);
-  const subject = `AI & 技术日报 · ${today} ${timeSlotLabel}`;
+  const subjectLabel = label || [today, timeSlotLabel].filter(Boolean).join(" ");
+  const subject = `${getReportTitle(reportType)} · ${subjectLabel}`.trim();
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;max-width:860px;margin:auto;padding:20px;line-height:1.8;color:#333;font-size:15px}

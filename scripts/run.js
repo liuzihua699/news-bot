@@ -8,23 +8,27 @@ import { fetchRSS } from "./fetch-rss.js";
 import { fetchArticleContent } from "./fetch-content.js";
 import { generateMarkdown } from "./generate-md.js";
 import { generateSummary } from "./generate-summary.js";
+import { matchesTargetDate, REPORT_TYPES } from "./report-utils.js";
 import { translateSnippets } from "./translate.js";
 
 // 启用 dayjs 的 timezone 插件
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export async function run() {
-  const today = dayjs().format("YYYY-MM-DD");
+export async function run(options = {}) {
+  const targetDate = options.targetDate || dayjs().format("YYYY-MM-DD");
   const timestamp = new Date().toISOString();
-
-  const utcHour = dayjs().utc().hour();
-  const timeSlot = utcHour < 12 ? 'morning' : 'evening';
-  const timeSlotLabel = utcHour < 12 ? '上午' : '晚上';
+  const requestedTimeSlot = options.timeSlot;
+  const isHistorical = Boolean(options.targetDate);
+  const utcHour = requestedTimeSlot
+    ? (requestedTimeSlot === "morning" ? 0 : 12)
+    : dayjs().utc().hour();
+  const timeSlot = requestedTimeSlot || (utcHour < 12 ? "morning" : "evening");
+  const timeSlotLabel = timeSlot === "morning" ? "上午" : "晚上";
   const beijingTime = dayjs().tz('Asia/Shanghai');
 
 console.log(`\n${'='.repeat(60)}`);
-console.log(`📰 科研 & 技术热点日报 - ${today} ${timeSlotLabel}`);
+console.log(`📰 科研 & 技术热点日报 - ${targetDate} ${timeSlotLabel}`);
 console.log(`⏰ 开始时间: ${beijingTime.format('YYYY-MM-DD HH:mm:ss')} (UTC+8)`);
 console.log(`${'='.repeat(60)}\n`);
 
@@ -44,8 +48,11 @@ for (const block of SOURCES) {
     }
 
     const feedTitle = feed.title || 'Unknown';
-    const feedItems = feed.items || [];
-    console.log(`  ✓ Successfully fetched: "${feedTitle}" (${feedItems.length} items)`);
+    const rawFeedItems = feed.items || [];
+    const feedItems = options.filterByDate
+      ? rawFeedItems.filter((item) => matchesTargetDate(item, targetDate))
+      : rawFeedItems;
+    console.log(`  ✓ Successfully fetched: "${feedTitle}" (${rawFeedItems.length} items, 命中日期 ${feedItems.length} items)`);
 
     // 根据源类型决定抓取数量：arXiv 抓2个（补充型），其他抓3-5个（稳定输出）
     const isArxiv = isArxivSource(src.name);
@@ -142,28 +149,58 @@ try {
 }
 
 // 生成 Markdown
-const md = generateMarkdown(today, results, summary, timestamp, timeSlotLabel);
+const md = generateMarkdown(REPORT_TYPES.DAILY, {
+  date: targetDate,
+  generatedAt: timestamp,
+  timeSlotLabel,
+}, results, summary);
 const dailyDir = path.join(process.cwd(), "daily");
+const dailyDataDir = path.join(process.cwd(), "daily-data");
 
 // Ensure daily directory exists
 if (!fs.existsSync(dailyDir)) {
   fs.mkdirSync(dailyDir, { recursive: true });
 }
+if (!fs.existsSync(dailyDataDir)) {
+  fs.mkdirSync(dailyDataDir, { recursive: true });
+}
 
 // 生成文件名：YYYY-MM-DD-morning.md 或 YYYY-MM-DD-evening.md
-const filename = `${today}-${timeSlot}.md`;
+const filename = `${targetDate}-${timeSlot}.md`;
 const out = path.join(dailyDir, filename);
 fs.writeFileSync(out, md, "utf-8");
+
+const archiveFilename = `${targetDate}-${timeSlot}.json`;
+const archivePath = path.join(dailyDataDir, archiveFilename);
+fs.writeFileSync(archivePath, JSON.stringify({
+  reportType: REPORT_TYPES.DAILY,
+  date: targetDate,
+  timeSlot,
+  timeSlotLabel,
+  generatedAt: timestamp,
+  summary,
+  backfilled: isHistorical,
+  categories: results,
+}, null, 2), "utf-8");
 
 const fileSize = (fs.statSync(out).size / 1024).toFixed(2);
 console.log(`\n${'='.repeat(60)}`);
 console.log(`✅ 报告生成完成!`);
 console.log(`   📄 文件路径: ${out}`);
+console.log(`   🗂️  归档路径: ${archivePath}`);
 console.log(`   📏 文件大小: ${fileSize} KB`);
 console.log(`⏰ 结束时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`);
 console.log(`${'='.repeat(60)}\n`);
 
-  return { filePath: out, filename, today, timeSlotLabel };
+  return {
+    reportType: REPORT_TYPES.DAILY,
+    filePath: out,
+    archivePath,
+    filename,
+    today: targetDate,
+    label: `${targetDate} ${timeSlotLabel}`,
+    timeSlotLabel,
+  };
 }
 
 // 直接运行兼容：node scripts/run.js
@@ -171,4 +208,3 @@ const isDirectRun = process.argv[1] && import.meta.url.endsWith(process.argv[1].
 if (isDirectRun) {
   run().then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1); });
 }
-
