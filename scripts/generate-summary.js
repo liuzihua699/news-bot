@@ -206,6 +206,12 @@ export function buildDailySummaryPrompt(newsData, timestamp, options = {}) {
  */
 export async function generateSummary(newsData, timestamp, maxRetries = 5, options = {}) {
   const apiKey = process.env.SILICONFLOW_API_KEY;
+  const totalItems = newsData.reduce((sum, block) => sum + (block.items?.length || 0), 0);
+
+  if (totalItems === 0) {
+    console.warn("⚠️  No news items collected, skipping summary generation");
+    return null;
+  }
   
   if (!apiKey) {
     console.warn("⚠️  SILICONFLOW_API_KEY not set, skipping summary generation");

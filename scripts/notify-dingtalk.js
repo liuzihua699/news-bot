@@ -3,6 +3,36 @@ import fetch from "node-fetch";
 import { extractBrief } from "./notify-utils.js";
 import { REPORT_TYPES, getReportTitle, getReportDirectory } from "./report-utils.js";
 
+function getFullReportLinkText(reportType) {
+  return reportType === REPORT_TYPES.WEEKLY ? "点击查看完整周报" : "点击查看完整日报";
+}
+
+function buildDingTalkTitle(reportType, effectiveLabel) {
+  return reportType === REPORT_TYPES.WEEKLY
+    ? `📰 ${getReportTitle(reportType)}`
+    : `📰 ${getReportTitle(reportType)} · ${effectiveLabel}`.trim();
+}
+
+export function buildDingTalkMarkdown({ reportType = REPORT_TYPES.DAILY, effectiveLabel, previewLink, brief }) {
+  const title = buildDingTalkTitle(reportType, effectiveLabel);
+  let text = `### ${title}\n\n`;
+
+  if (reportType === REPORT_TYPES.WEEKLY && effectiveLabel) {
+    text += `🗓️ 周期：${effectiveLabel}\n\n`;
+  }
+
+  if (brief) {
+    text += `${brief}\n\n`;
+  }
+  if (previewLink) {
+    text += `📖 [${getFullReportLinkText(reportType)}](${previewLink})\n\n`;
+  }
+  text += `---\n`;
+  text += `⏰ 生成时间：${new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`;
+
+  return { title, text };
+}
+
 /**
  * 发送钉钉机器人通知
  * @param {Object} options
@@ -41,18 +71,13 @@ export async function sendDingTalk({ reportType = REPORT_TYPES.DAILY, today, tim
   const previewLink = previewBase ? `${previewBase.replace(/\/$/, "")}/${reportDir}/${slug}` : null;
 
   const effectiveLabel = label || [today, timeSlotLabel].filter(Boolean).join(" ");
-  const title = `📰 ${getReportTitle(reportType)} · ${effectiveLabel}`.trim();
   const brief = filePath ? extractBrief(filePath, reportType) : "";
-
-  let text = `### ${title}\n\n`;
-  if (brief) {
-    text += `${brief}\n\n`;
-  }
-  if (previewLink) {
-    text += `📖 [点击查看完整日报](${previewLink})\n\n`;
-  }
-  text += `---\n`;
-  text += `⏰ 生成时间：${new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`;
+  const { title, text } = buildDingTalkMarkdown({
+    reportType,
+    effectiveLabel,
+    previewLink,
+    brief,
+  });
 
   const body = {
     msgtype: "markdown",
