@@ -7,6 +7,12 @@
   "scripts": {
     "start": "node scripts/run.js",
     "daily": "node scripts/daily.js",
+    "backfill:daily": "node scripts/backfill-daily.js",
+    "weekly": "node scripts/weekly.js",
+    "weekly:generate": "node scripts/run-weekly.js",
+    "notify": "node scripts/send-report.js",
+    "notify:weekly": "node scripts/send-report.js --type weekly",
+    "test": "node --test tests/*.test.js",
     "preview": "node server.js"
   },
   "keywords": [
@@ -28,4 +34,3 @@
     "dotenv": "^16.4.0"
   }
 }
-

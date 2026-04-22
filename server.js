@@ -2,28 +2,26 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { REPORT_TYPES, getReportTitle, parseReportFile } from "./scripts/report-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DAILY_DIR = path.join(__dirname, "daily");
+const WEEKLY_DIR = path.join(__dirname, "weekly");
 const PORT = process.env.PORT || 3000;
 
-/**
- * 获取 daily 目录下的 md 文件列表，按日期降序
- */
-function listDailyFiles() {
-  if (!fs.existsSync(DAILY_DIR)) return [];
-  return fs.readdirSync(DAILY_DIR)
+function getDirectoryByType(reportType) {
+  return reportType === REPORT_TYPES.WEEKLY ? WEEKLY_DIR : DAILY_DIR;
+}
+
+function listReportFiles(reportType = REPORT_TYPES.DAILY) {
+  const dir = getDirectoryByType(reportType);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
     .filter(f => f.endsWith(".md") && !f.startsWith("."))
     .sort()
     .reverse()
-    .map(name => {
-      const match = name.match(/^(\d{4}-\d{2}-\d{2})-(morning|evening)\.md$/);
-      const label = match
-        ? `${match[1]} ${match[2] === "morning" ? "上午" : "晚上"}`
-        : name.replace(".md", "");
-      const slug = name.replace(".md", "");
-      return { name, label, slug };
-    });
+    .map(name => ({ name, ...parseReportFile(reportType, name) }))
+    .filter(Boolean);
 }
 
 function getHtmlPage() {
@@ -32,7 +30,7 @@ function getHtmlPage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>科研 & 技术热点日报</title>
+  <title>${getReportTitle(REPORT_TYPES.DAILY)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -102,6 +100,13 @@ function getHtmlPage() {
     .header-left h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
     .header-left h1 a { color: var(--header-text); text-decoration: none; }
     .header-right { display: flex; align-items: center; gap: 6px; }
+    .report-nav { display: flex; gap: 6px; margin-left: 6px; }
+    .report-link {
+      padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border);
+      font-size: 12px; color: var(--header-text); text-decoration: none;
+      background: transparent;
+    }
+    .report-link.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 
     /* Header controls */
     .h-select {
@@ -278,9 +283,13 @@ function getHtmlPage() {
 <body>
   <div class="header">
     <div class="header-left">
-      <h1><a href="/">科研 & 技术热点日报</a></h1>
+      <h1><a href="/">科研 & 技术热点报告</a></h1>
     </div>
     <div class="header-right">
+      <div class="report-nav">
+        <a class="report-link" id="linkDaily" href="/daily">日报</a>
+        <a class="report-link" id="linkWeekly" href="/weekly">周报</a>
+      </div>
       <button class="h-btn" id="btnPrev" onclick="navigate(-1)" title="上一篇">&#8249;</button>
       <select class="h-select" id="fileSelect" onchange="navigateTo(this.value)"></select>
       <button class="h-btn" id="btnNext" onclick="navigate(1)" title="下一篇">&#8250;</button>
@@ -308,6 +317,9 @@ function getHtmlPage() {
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
   <script>
     /* ========== Globals ========== */
+    const reportType = location.pathname.startsWith('/weekly') ? 'weekly' : 'daily';
+    const reportTitle = reportType === 'weekly' ? '科研 & 技术热点周报' : '科研 & 技术热点日报';
+    const reportBasePath = reportType === 'weekly' ? '/weekly/' : '/daily/';
     const contentEl = document.getElementById('content');
     const selectEl  = document.getElementById('fileSelect');
     const tocList   = document.getElementById('tocList');
@@ -325,6 +337,8 @@ function getHtmlPage() {
       const saved = localStorage.getItem('theme');
       if (saved) setTheme(saved);
     })();
+    document.getElementById('linkDaily').classList.toggle('active', reportType === 'daily');
+    document.getElementById('linkWeekly').classList.toggle('active', reportType === 'weekly');
 
     /* ========== Mobile sidebar ========== */
     function toggleSidebar() {
@@ -389,12 +403,13 @@ function getHtmlPage() {
     /* ========== File navigation ========== */
     async function init() {
       try {
-        const res = await fetch('/api/list');
+        const res = await fetch('/api/list?type=' + reportType);
         fileList = await res.json();
         selectEl.innerHTML = '';
         if (fileList.length === 0) {
-          selectEl.innerHTML = '<option value="">暂无日报</option>';
-          contentEl.innerHTML = '<div class="empty">暂无日报文件</div>';
+          const emptyLabel = reportType === 'weekly' ? '暂无周报' : '暂无日报';
+          selectEl.innerHTML = '<option value="">' + emptyLabel + '</option>';
+          contentEl.innerHTML = '<div class="empty">' + emptyLabel + '文件</div>';
           contentEl.classList.remove('loading');
           return;
         }
@@ -403,7 +418,7 @@ function getHtmlPage() {
           opt.value = f.slug; opt.textContent = f.label;
           selectEl.appendChild(opt);
         });
-        const pathSlug = location.pathname.replace(/^\\/daily\\//, '').replace(/\\/$/, '');
+        const pathSlug = location.pathname.replace(/^\\/(daily|weekly)\\//, '').replace(/\\/$/, '');
         const match = fileList.find(f => f.slug === pathSlug);
         if (match) { selectEl.value = match.slug; loadFile(match.slug); }
         else { navigateTo(fileList[0].slug); }
@@ -414,7 +429,7 @@ function getHtmlPage() {
     }
     function navigateTo(slug) {
       if (!slug) return;
-      history.pushState(null, '', '/daily/' + slug);
+      history.pushState(null, '', reportBasePath + slug);
       selectEl.value = slug; loadFile(slug);
     }
     function navigate(dir) {
@@ -431,10 +446,10 @@ function getHtmlPage() {
       contentEl.textContent = '加载中...';
       tocList.innerHTML = '';
       const label = fileList.find(f => f.slug === slug)?.label || slug;
-      document.title = label + ' - 科研 & 技术热点日报';
+      document.title = label + ' - ' + reportTitle;
       updateNavButtons();
       try {
-        const res = await fetch('/api/content?file=' + encodeURIComponent(slug + '.md'));
+        const res = await fetch('/api/content?type=' + reportType + '&file=' + encodeURIComponent(slug + '.md'));
         if (!res.ok) throw new Error('文件不存在');
         const md = await res.text();
         contentEl.innerHTML = marked.parse(md);
@@ -459,7 +474,7 @@ function getHtmlPage() {
       if (e.key === 'ArrowRight') navigate(1);
     });
     window.addEventListener('popstate', () => {
-      const s = location.pathname.replace(/^\\/daily\\//, '').replace(/\\/$/, '');
+      const s = location.pathname.replace(/^\\/(daily|weekly)\\//, '').replace(/\\/$/, '');
       const m = fileList.find(f => f.slug === s);
       if (m) { selectEl.value = m.slug; loadFile(m.slug); }
     });
@@ -596,11 +611,20 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
 
+  const reportType = pathname.startsWith("/weekly") || url.searchParams.get("type") === REPORT_TYPES.WEEKLY
+    ? REPORT_TYPES.WEEKLY
+    : REPORT_TYPES.DAILY;
+  const reportDir = getDirectoryByType(reportType);
+
   // 首页 → 重定向到最新日报
   if (pathname === "/" && req.method === "GET") {
-    const files = listDailyFiles();
+    const files = listReportFiles(REPORT_TYPES.DAILY);
     if (files.length > 0) {
       res.writeHead(302, { Location: `/daily/${files[0].slug}` });
+      res.end();
+    } else if (listReportFiles(REPORT_TYPES.WEEKLY).length > 0) {
+      const weeklyFiles = listReportFiles(REPORT_TYPES.WEEKLY);
+      res.writeHead(302, { Location: `/weekly/${weeklyFiles[0].slug}` });
       res.end();
     } else {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -609,8 +633,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // /daily/:slug → 渲染 HTML 页面（客户端根据 URL 加载对应文件）
-  if (pathname.startsWith("/daily/") && req.method === "GET") {
+  if ((pathname === "/daily" || pathname === "/weekly") && req.method === "GET") {
+    const files = listReportFiles(reportType);
+    if (files.length > 0) {
+      res.writeHead(302, { Location: `${pathname}/${files[0].slug}` });
+      res.end();
+    } else {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(getHtmlPage());
+    }
+    return;
+  }
+
+  // /daily/:slug or /weekly/:slug → 渲染 HTML 页面（客户端根据 URL 加载对应文件）
+  if ((pathname.startsWith("/daily/") || pathname.startsWith("/weekly/")) && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(getHtmlPage());
     return;
@@ -618,7 +654,7 @@ const server = http.createServer((req, res) => {
 
   // API: 文件列表
   if (pathname === "/api/list" && req.method === "GET") {
-    const files = listDailyFiles();
+    const files = listReportFiles(reportType);
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(files));
     return;
@@ -632,7 +668,7 @@ const server = http.createServer((req, res) => {
       res.end("Invalid filename");
       return;
     }
-    const filePath = path.join(DAILY_DIR, filename);
+    const filePath = path.join(reportDir, filename);
     if (!fs.existsSync(filePath)) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("File not found");
@@ -650,8 +686,9 @@ const server = http.createServer((req, res) => {
 
 const HOST = process.env.HOST || "0.0.0.0";
 server.listen(PORT, HOST, () => {
-  console.log(`\n🚀 日报预览服务器已启动`);
+  console.log(`\n🚀 报告预览服务器已启动`);
   console.log(`   📖 访问地址: http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
   console.log(`   📂 日报目录: ${DAILY_DIR}`);
+  console.log(`   📂 周报目录: ${WEEKLY_DIR}`);
   console.log(`   按 Ctrl+C 停止服务器\n`);
 });

@@ -70,7 +70,7 @@ jobs:
           DATE=$(date +'%Y-%m-%d')
           echo "date=${DATE}" >> $GITHUB_OUTPUT
           
-          git add daily/
+          git add daily/ daily-data/
           git commit -m "chore: daily research & tech digest ${DATE} ${TIME_LABEL}" || echo "No changes to commit"
           
           # 推送更改
@@ -143,4 +143,3 @@ jobs:
             }
           
           echo "✅ Issue created successfully"
-

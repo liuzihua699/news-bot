@@ -1,0 +1,97 @@
+name: Weekly Research & Tech Digest
+
+on:
+  schedule:
+    - cron: "0 9 * * 5" # Friday 17:00 UTC+8, aggregate last Saturday to this Friday
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Run weekly digest
+        env:
+          SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+        timeout-minutes: 15
+        run: node scripts/run-weekly.js
+
+      - name: Commit weekly digest
+        id: commit
+        run: |
+          git config user.name "liuzihua669"
+          git config user.email "2274298503@qq.com"
+
+          git fetch origin main
+          git pull origin main --rebase --no-edit || {
+            echo "Rebase failed, trying merge instead..."
+            git pull origin main --no-edit || {
+              echo "Merge also failed, resetting to remote..."
+              git fetch origin main
+              git reset --hard origin/main
+            }
+          }
+
+          WEEK_END=$(TZ='Asia/Shanghai' date -d 'yesterday' +'%Y-%m-%d')
+          WEEK_START=$(TZ='Asia/Shanghai' date -d "${WEEK_END} -6 day" +'%Y-%m-%d')
+          FILENAME="${WEEK_START}_to_${WEEK_END}.md"
+
+          echo "week_start=${WEEK_START}" >> $GITHUB_OUTPUT
+          echo "week_end=${WEEK_END}" >> $GITHUB_OUTPUT
+          echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
+
+          git add weekly/
+          git commit -m "chore: weekly research & tech digest ${WEEK_START} to ${WEEK_END}" || echo "No changes to commit"
+          git push origin main
+
+      - name: Create GitHub Issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WEEK_START="${{ steps.commit.outputs.week_start }}"
+          WEEK_END="${{ steps.commit.outputs.week_end }}"
+          FILENAME="weekly/${{ steps.commit.outputs.filename }}"
+
+          if [ ! -f "$FILENAME" ]; then
+            echo "⚠️  File $FILENAME not found, skipping issue creation"
+            exit 0
+          fi
+
+          MD_CONTENT=$(cat "$FILENAME")
+          ISSUE_TITLE="🗞️ 科研 & 技术热点周报 - ${WEEK_START} ~ ${WEEK_END}"
+
+          LABEL_CONFIGS=(
+            "weekly-digest|1D76DB|Weekly research & tech digest"
+            "automated|7057FF|Automated by GitHub Actions"
+          )
+
+          echo "🏷️  Checking and creating labels..."
+          for LABEL_CONFIG in "${LABEL_CONFIGS[@]}"; do
+            IFS='|' read -r LABEL COLOR DESCRIPTION <<< "$LABEL_CONFIG"
+            LABEL_EXISTS=$(gh label list --json name --jq ".[] | select(.name==\"${LABEL}\") | .name" 2>/dev/null | grep -q "^${LABEL}$" && echo "yes" || echo "no")
+            if [ "$LABEL_EXISTS" = "no" ]; then
+              gh label create "${LABEL}" --color "${COLOR}" --description "${DESCRIPTION}" 2>&1 || true
+            fi
+          done
+
+          gh issue create \
+            --title "$ISSUE_TITLE" \
+            --body "$MD_CONTENT" \
+            --label "weekly-digest" \
+            --label "automated" 2>&1 || {
+              echo "❌ Issue creation failed, but continuing workflow"
+              exit 0
+            }
