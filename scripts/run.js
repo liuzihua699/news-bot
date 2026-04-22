@@ -136,7 +136,10 @@ try {
 let summary = null;
 try {
   console.log(`🤖 开始生成 LLM 摘要（最多重试5次）...`);
-  summary = await generateSummary(results, timestamp, 5);
+  summary = await generateSummary(results, timestamp, 5, {
+    reportDate: targetDate,
+    isHistorical,
+  });
   if (summary) {
     console.log(`✅ LLM 摘要生成成功 (${summary.length} 字符)`);
     console.log(`\n📝 摘要内容:\n${summary}\n`);

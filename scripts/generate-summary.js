@@ -79,10 +79,132 @@ async function callLLMAPI(client, prompt, attempt = 1) {
   }
 }
 
+export function buildDailySummaryPrompt(newsData, timestamp, options = {}) {
+  const reportDate = options.reportDate || new Date(timestamp).toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" });
+  const isHistorical = Boolean(options.isHistorical);
+
+  const basePromptPrefix = `当前时间戳：${timestamp}
+报告目标日期：${reportDate}
+
+以下是 ${reportDate} 收集的科研与技术热点新闻：
+
+`;
+
+  const basePromptSuffix = `
+
+请为以上新闻生成一份简洁的日报总结，包括：
+1. 当日最重要的技术趋势和热点（分点描述）
+2. 值得关注的研究方向或突破
+3. 中文技术社区热议话题（知乎热门讨论、阮一峰博客观点、美团技术实践等）
+4. 简要的分析或展望
+5. 对于开发者、研究人员、学生等不同角色，给出不同的建议和指导
+
+要求：语言专业，并且要富含技术性，可以有趣味性，但要符合事实，要用通俗易懂的语言。
+注意区分国际前沿动态和国内技术实践，两者兼顾。用中文输出，800-1500字左右，根据实际情况调整。`;
+
+  const historicalNote = isHistorical
+    ? `\n重要：这是一份历史回刷日报。请把 ${reportDate} 视为“当日/今日”，不要使用当前真实日期，不要写“今天是当前时间戳对应的日期”。`
+    : "";
+
 /**
  * 带重试的 LLM 摘要生成
  */
-export async function generateSummary(newsData, timestamp, maxRetries = 5) {
+  const basePromptLength = (basePromptPrefix + historicalNote + basePromptSuffix).length;
+  const MAX_TOTAL_LENGTH = 60000;
+  const availableLength = MAX_TOTAL_LENGTH - basePromptLength;
+
+  console.log(`   📏 基础提示词长度: ${basePromptLength} 字符`);
+  console.log(`   📏 可用新闻内容长度: ${availableLength} 字符`);
+
+  const newsItems = [];
+  for (const block of newsData) {
+    if (block.items.length === 0) continue;
+
+    block.items.slice(0, 5).forEach((item) => {
+      const content = item.fullContent || item.snippet || "";
+      let trimmedContent = "";
+      let contentType = "";
+
+      if (content && content.trim().length > 50) {
+        trimmedContent = content.length > 800
+          ? content.substring(0, 800).trim() + "..."
+          : content.trim();
+        trimmedContent = trimmedContent.replace(/\n/g, " ");
+        contentType = item.contentType === "fulltext" ? "全文" : "RSS摘要";
+      }
+
+      newsItems.push({
+        category: block.category,
+        title: item.title || "Untitled",
+        source: item.source,
+        link: item.link || "#",
+        content: trimmedContent,
+        contentType,
+        hasContent: trimmedContent.length > 0,
+      });
+    });
+  }
+
+  let newsContentFramework = "日报新闻内容：\n\n";
+  let currentCategory = "";
+  let itemIndex = 1;
+
+  for (let idx = 0; idx < newsItems.length; idx += 1) {
+    const item = newsItems[idx];
+
+    if (item.category !== currentCategory) {
+      newsContentFramework += `【${item.category}】\n`;
+      currentCategory = item.category;
+      itemIndex = 1;
+    }
+
+    newsContentFramework += `\n${itemIndex}. ${item.title} (来源: ${item.source})\n`;
+    newsContentFramework += `   内容（${item.contentType || "无"}）: `;
+    newsContentFramework += `{CONTENT_${idx}}\n`;
+    itemIndex += 1;
+  }
+
+  const frameworkLength = newsContentFramework.length;
+  const totalContentPlaceholderLength = newsItems.reduce((sum, item, idx) => sum + `{CONTENT_${idx}}`.length, 0);
+  const actualAvailableLength = availableLength - frameworkLength + totalContentPlaceholderLength;
+  console.log(`   📏 新闻框架长度: ${frameworkLength} 字符`);
+  console.log(`   📏 实际可用于新闻内容的长度: ${actualAvailableLength} 字符`);
+
+  const totalContentLength = newsItems.reduce((sum, item) => sum + item.content.length, 0);
+  console.log(`   📏 所有新闻内容总长度: ${totalContentLength} 字符`);
+
+  let newsContent = newsContentFramework;
+
+  if (totalContentLength > actualAvailableLength) {
+    const reductionRatio = actualAvailableLength / totalContentLength;
+    console.log(`   ⚠️  内容超限，需要缩减至 ${actualAvailableLength.toFixed(0)} 字符（缩减比例: ${(reductionRatio * 100).toFixed(1)}%）`);
+
+    newsItems.forEach((item, idx) => {
+      const originalLength = item.content.length;
+      const targetLength = Math.floor(originalLength * reductionRatio);
+      const truncatedContent = item.content.substring(0, Math.max(100, targetLength - 10)).trim() + "...";
+      const placeholder = `{CONTENT_${idx}}`;
+      newsContent = newsContent.replace(placeholder, truncatedContent);
+      console.log(`      - 新闻 ${idx + 1}: ${originalLength} → ${truncatedContent.length} 字符`);
+    });
+  } else {
+    newsItems.forEach((item, idx) => {
+      const placeholder = `{CONTENT_${idx}}`;
+      const contentToInsert = item.hasContent ? item.content : "(仅标题，无详细内容)";
+      newsContent = newsContent.replace(placeholder, contentToInsert);
+    });
+  }
+
+  return {
+    prompt: basePromptPrefix + newsContent + historicalNote + basePromptSuffix,
+    maxTotalLength: MAX_TOTAL_LENGTH,
+  };
+}
+
+/**
+ * 带重试的 LLM 摘要生成
+ */
+export async function generateSummary(newsData, timestamp, maxRetries = 5, options = {}) {
   const apiKey = process.env.SILICONFLOW_API_KEY;
   
   if (!apiKey) {
@@ -98,130 +220,7 @@ export async function generateSummary(newsData, timestamp, maxRetries = 5) {
     maxRetries: 0,   // 禁用 OpenAI SDK 自己的重试，我们自己控制
   });
 
-  // 构建基础提示词（不包含新闻内容部分）
-  const basePromptPrefix = `当前时间戳：${timestamp}
-
-以下是今日（${new Date(timestamp).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })})收集的科研与技术热点新闻：
-
-`;
-
-  const basePromptSuffix = `
-
-请为以上新闻生成一份简洁的今日总结，包括：
-1. 今日最重要的技术趋势和热点（分点描述）
-2. 值得关注的研究方向或突破
-3. 中文技术社区热议话题（知乎热门讨论、阮一峰博客观点、美团技术实践等）
-4. 简要的分析或展望
-5. 对于开发者、研究人员、学生等不同角色，给出不同的建议和指导
-
-要求：语言专业，并且要富含技术性，可以有趣味性，但要符合事实，要用通俗易懂的语言。
-注意区分国际前沿动态和国内技术实践，两者兼顾。用中文输出，800-1500字左右，根据实际情况调整。`;
-
-  const basePromptLength = basePromptPrefix.length + basePromptSuffix.length;
-  const MAX_TOTAL_LENGTH = 60000;
-  const availableLength = MAX_TOTAL_LENGTH - basePromptLength;
-
-  console.log(`   📏 基础提示词长度: ${basePromptLength} 字符`);
-  console.log(`   📏 可用新闻内容长度: ${availableLength} 字符`);
-
-  // 收集所有新闻项目和内容
-  const newsItems = [];
-  for (const block of newsData) {
-    if (block.items.length === 0) continue;
-    
-    block.items.slice(0, 5).forEach((item, idx) => {
-      const content = item.fullContent || item.snippet || "";
-      let trimmedContent = "";
-      let contentType = "";
-      
-      if (content && content.trim().length > 50) {
-        // 初始限制内容长度
-        trimmedContent = content.length > 800 
-          ? content.substring(0, 800).trim() + '...'
-          : content.trim();
-        trimmedContent = trimmedContent.replace(/\n/g, ' ');
-        contentType = item.contentType === 'fulltext' ? '全文' : 'RSS摘要';
-      }
-      
-      newsItems.push({
-        category: block.category,
-        title: item.title || 'Untitled',
-        source: item.source,
-        link: item.link || '#',
-        content: trimmedContent,
-        contentType: contentType,
-        hasContent: trimmedContent.length > 0
-      });
-    });
-  }
-
-  // 构建新闻内容的框架文本（不包括实际内容）
-  let newsContentFramework = "今日科研与技术新闻内容：\n\n";
-  let currentCategory = "";
-  let itemIndex = 1;
-  
-  for (let idx = 0; idx < newsItems.length; idx++) {
-    const item = newsItems[idx];
-    
-    if (item.category !== currentCategory) {
-      newsContentFramework += `【${item.category}】\n`;
-      currentCategory = item.category;
-      itemIndex = 1;
-    }
-    
-    newsContentFramework += `\n${itemIndex}. ${item.title} (来源: ${item.source})\n`;
-    // 移除链接，因为链接对AI来说没有意义
-    newsContentFramework += `   内容（${item.contentType || '无'}）: `;
-    
-    // 为内容预留位置，使用新闻项目在数组中的索引
-    newsContentFramework += `{CONTENT_${idx}}\n`;
-    itemIndex++;
-  }
-
-  // 计算框架文本长度
-  const frameworkLength = newsContentFramework.length;
-  const totalContentPlaceholderLength = newsItems.reduce((sum, item, idx) => {
-    return sum + `{CONTENT_${idx}}`.length;
-  }, 0);
-  
-  const actualAvailableLength = availableLength - frameworkLength + totalContentPlaceholderLength;
-  console.log(`   📏 新闻框架长度: ${frameworkLength} 字符`);
-  console.log(`   📏 实际可用于新闻内容的长度: ${actualAvailableLength} 字符`);
-
-  // 计算所有新闻内容的总长度
-  const totalContentLength = newsItems.reduce((sum, item) => sum + item.content.length, 0);
-  console.log(`   📏 所有新闻内容总长度: ${totalContentLength} 字符`);
-
-  // 如果超过限制，对每个新闻内容进行等比例缩减排减
-  let newsContent = newsContentFramework;
-  
-  if (totalContentLength > actualAvailableLength) {
-    const reductionRatio = actualAvailableLength / totalContentLength;
-    console.log(`   ⚠️  内容超限，需要缩减至 ${actualAvailableLength.toFixed(0)} 字符（缩减比例: ${(reductionRatio * 100).toFixed(1)}%）`);
-    
-    // 对每个新闻内容进行缩减
-    newsItems.forEach((item, idx) => {
-      const originalLength = item.content.length;
-      const targetLength = Math.floor(originalLength * reductionRatio);
-      const truncatedContent = item.content.substring(0, Math.max(100, targetLength - 10)).trim() + '...';
-      
-      // 替换占位符
-      const placeholder = `{CONTENT_${idx}}`;
-      newsContent = newsContent.replace(placeholder, truncatedContent);
-      
-      console.log(`      - 新闻 ${idx + 1}: ${originalLength} → ${truncatedContent.length} 字符`);
-    });
-  } else {
-    // 不需要缩减，直接填充内容
-    newsItems.forEach((item, idx) => {
-      const placeholder = `{CONTENT_${idx}}`;
-      const contentToInsert = item.hasContent ? item.content : '(仅标题，无详细内容)';
-      newsContent = newsContent.replace(placeholder, contentToInsert);
-    });
-  }
-
-  // 组装完整 prompt
-  const prompt = basePromptPrefix + newsContent + basePromptSuffix;
+  const { prompt, maxTotalLength: MAX_TOTAL_LENGTH } = buildDailySummaryPrompt(newsData, timestamp, options);
   
   console.log(`   📏 最终 Prompt 长度: ${prompt.length} 字符 (限制: ${MAX_TOTAL_LENGTH} 字符)`);
   
