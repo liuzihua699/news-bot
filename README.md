@@ -116,6 +116,44 @@ npm start
 
 或使用 `.env` 文件（需要安装 `dotenv` 包）。
 
+### 🔔 推送配置
+
+钉钉和邮件支持“日报 / 周报分开推送”，也支持继续沿用原来的共享配置。
+
+钉钉变量：
+
+```bash
+# 共享配置（不区分日报/周报时使用）
+DINGTALK_WEBHOOK=...
+DINGTALK_SECRET=...
+
+# 按报告类型拆分（配置后优先使用）
+DINGTALK_WEBHOOK_DAILY=...
+DINGTALK_SECRET_DAILY=...
+DINGTALK_WEBHOOK_WEEKLY=...
+DINGTALK_SECRET_WEEKLY=...
+```
+
+邮件变量：
+
+```bash
+# SMTP 基础配置
+EMAIL_USER=...
+EMAIL_PASSWORD=...
+
+# 共享收件人（不区分日报/周报时使用）
+EMAIL_RECIPIENTS=a@example.com,b@example.com
+
+# 按报告类型拆分（配置后优先使用）
+EMAIL_RECIPIENTS_DAILY=daily@example.com
+EMAIL_RECIPIENTS_WEEKLY=weekly@example.com
+```
+
+优先级规则：
+- 日报优先读取 `DINGTALK_WEBHOOK_DAILY` / `DINGTALK_SECRET_DAILY` / `EMAIL_RECIPIENTS_DAILY`
+- 周报优先读取 `DINGTALK_WEBHOOK_WEEKLY` / `DINGTALK_SECRET_WEEKLY` / `EMAIL_RECIPIENTS_WEEKLY`
+- 如果未配置对应变量，则自动回退到共享变量 `DINGTALK_WEBHOOK` / `DINGTALK_SECRET` / `EMAIL_RECIPIENTS`
+
 ## 📝 输出示例
 
 日报生成的 Markdown 文件包含：

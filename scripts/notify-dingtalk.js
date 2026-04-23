@@ -13,6 +13,18 @@ function buildDingTalkTitle(reportType, effectiveLabel) {
     : `📰 ${getReportTitle(reportType)} · ${effectiveLabel}`.trim();
 }
 
+export function resolveDingTalkConfig(reportType = REPORT_TYPES.DAILY) {
+  const isWeekly = reportType === REPORT_TYPES.WEEKLY;
+  return {
+    webhook: isWeekly
+      ? (process.env.DINGTALK_WEBHOOK_WEEKLY || process.env.DINGTALK_WEBHOOK)
+      : (process.env.DINGTALK_WEBHOOK_DAILY || process.env.DINGTALK_WEBHOOK),
+    secret: isWeekly
+      ? (process.env.DINGTALK_SECRET_WEEKLY || process.env.DINGTALK_SECRET)
+      : (process.env.DINGTALK_SECRET_DAILY || process.env.DINGTALK_SECRET),
+  };
+}
+
 export function buildDingTalkMarkdown({ reportType = REPORT_TYPES.DAILY, effectiveLabel, previewLink, brief }) {
   const title = buildDingTalkTitle(reportType, effectiveLabel);
   let text = `### ${title}\n\n`;
@@ -44,8 +56,7 @@ export function buildDingTalkMarkdown({ reportType = REPORT_TYPES.DAILY, effecti
  * @param {string} [options.filePath] - markdown 文件路径（用于提取简述）
  */
 export async function sendDingTalk({ reportType = REPORT_TYPES.DAILY, today, timeSlotLabel, label, filename, filePath }) {
-  const webhook = process.env.DINGTALK_WEBHOOK;
-  const secret = process.env.DINGTALK_SECRET;
+  const { webhook, secret } = resolveDingTalkConfig(reportType);
   const previewBase = process.env.DAILY_PREVIEW_URL;
 
   if (!webhook) {

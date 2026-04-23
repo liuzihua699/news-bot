@@ -3,6 +3,12 @@ import { marked } from "marked";
 import nodemailer from "nodemailer";
 import { REPORT_TYPES, getReportTitle } from "./report-utils.js";
 
+export function resolveEmailRecipients(reportType = REPORT_TYPES.DAILY) {
+  return reportType === REPORT_TYPES.WEEKLY
+    ? (process.env.EMAIL_RECIPIENTS_WEEKLY || process.env.EMAIL_RECIPIENTS)
+    : (process.env.EMAIL_RECIPIENTS_DAILY || process.env.EMAIL_RECIPIENTS);
+}
+
 /**
  * 发送报告邮件
  * @param {Object} options
@@ -17,10 +23,10 @@ export async function sendEmail({ filePath, reportType = REPORT_TYPES.DAILY, tod
   const port = parseInt(process.env.EMAIL_SMTP_PORT || "465");
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASSWORD;
-  const recipients = process.env.EMAIL_RECIPIENTS;
+  const recipients = resolveEmailRecipients(reportType);
 
   if (!user || !pass || !recipients) {
-    console.warn("⚠️  邮件配置不完整（需要 EMAIL_USER, EMAIL_PASSWORD, EMAIL_RECIPIENTS），跳过邮件发送");
+    console.warn("⚠️  邮件配置不完整（需要 EMAIL_USER, EMAIL_PASSWORD, EMAIL_RECIPIENTS 或按日报/周报拆分的收件人变量），跳过邮件发送");
     return false;
   }
 

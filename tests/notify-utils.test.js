@@ -69,3 +69,35 @@ ${longText}
   const brief = extractBrief(filePath, "weekly");
   assert.equal(brief.length, 450);
 });
+
+test("extractBrief strips generated daily report headers before pushing to dingtalk", () => {
+  const filePath = createTempMarkdown(`# 🧠 科研 & 技术热点日报
+
+日期：2026-04-23 上午
+生成时间：2026/04/23 09:00
+
+## 📝 今日总结
+
+# 科研与技术热点日报总结
+**报告日期：2026年4月23日**
+**生成时间：2026年4月23日 00:30 UTC**
+
+## 1. 今日最重要的技术趋势和热点
+
+AI 智能体开始进入更强的工程化落地阶段。
+
+---
+
+## 🔥 AI / LLM
+
+- 条目一
+`);
+
+  const brief = extractBrief(filePath, "daily", 500);
+
+  assert.doesNotMatch(brief, /科研与技术热点日报总结/);
+  assert.doesNotMatch(brief, /报告日期：/);
+  assert.doesNotMatch(brief, /生成时间：/);
+  assert.match(brief, /今日最重要的技术趋势和热点/);
+  assert.match(brief, /AI 智能体开始进入更强的工程化落地阶段/);
+});
