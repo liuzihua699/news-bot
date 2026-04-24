@@ -139,18 +139,25 @@ function getHtmlPage() {
     .theme-btn[data-t="notion"]{ background: linear-gradient(135deg, #fff, #f7f6f3); border: 1px solid #ddd; }
 
     /* ========== Layout ========== */
-    .layout { display: flex; margin-top: 52px; min-height: calc(100vh - 52px); }
+    .layout {
+      display: grid; grid-template-columns: 260px minmax(0, 1fr);
+      align-items: start; margin-top: 52px; min-height: calc(100vh - 52px);
+    }
 
     /* ========== TOC Sidebar ========== */
     .sidebar {
       width: 260px; min-width: 260px; background: var(--sidebar-bg);
       border-right: 1px solid var(--border);
-      position: fixed; top: 52px; bottom: 0; left: 0;
+      position: sticky; top: 52px; align-self: start;
+      max-height: calc(100vh - 52px);
       overflow-y: auto; overflow-x: hidden; z-index: 50;
       padding: 16px 0; transition: transform 0.3s, background 0.3s;
+      scrollbar-width: none; -ms-overflow-style: none;
     }
-    .sidebar::-webkit-scrollbar { width: 4px; }
-    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .sidebar:hover { scrollbar-width: thin; }
+    .sidebar::-webkit-scrollbar { width: 0; }
+    .sidebar:hover::-webkit-scrollbar { width: 4px; }
+    .sidebar:hover::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     .sidebar-title {
       font-size: 11px; font-weight: 600; text-transform: uppercase;
       letter-spacing: 1px; color: var(--text-muted); padding: 0 20px 8px;
@@ -181,7 +188,7 @@ function getHtmlPage() {
     }
 
     /* ========== Main Content ========== */
-    .main { flex: 1; margin-left: 260px; padding: 32px 40px 80px; max-width: 100%; }
+    .main { min-width: 0; padding: 32px 40px 80px; max-width: 100%; }
     .article {
       max-width: 780px; margin: 0 auto;
       background: var(--card-bg); border-radius: 10px;
@@ -269,7 +276,12 @@ function getHtmlPage() {
 
     /* ========== Responsive ========== */
     @media (max-width: 900px) {
-      .sidebar { transform: translateX(-100%); width: 280px; z-index: 150; box-shadow: var(--shadow-md); }
+      .layout { display: block; }
+      .sidebar {
+        position: fixed; top: 52px; bottom: 0; left: 0;
+        width: 280px; max-height: none; transform: translateX(-100%);
+        z-index: 150; box-shadow: var(--shadow-md);
+      }
       .sidebar.open { transform: translateX(0); }
       .main { margin-left: 0; padding: 24px 16px 60px; }
       .article { padding: 24px 20px; }
