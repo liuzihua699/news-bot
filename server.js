@@ -217,9 +217,15 @@ function getHtmlPage() {
     .article p { margin-bottom: 1em; color: var(--text); }
     .article li { margin-bottom: 0.35em; color: var(--text); }
     .article ul, .article ol { padding-left: 1.6em; margin-bottom: 1em; }
+    .article p, .article li, .article blockquote, .article td {
+      overflow-wrap: anywhere; word-break: break-word;
+    }
 
     /* Links */
-    .article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+    .article a {
+      color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent;
+      overflow-wrap: anywhere; word-break: break-word;
+    }
     .article a:hover { border-bottom-color: var(--accent); }
 
     /* Blockquotes */

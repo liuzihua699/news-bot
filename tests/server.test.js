@@ -13,3 +13,8 @@ test("preview desktop layout keeps sidebar in flow to avoid horizontal overflow"
   assert.match(serverSource, /\.sidebar\s*\{[^}]*position:\s*sticky;[^}]*top:\s*52px;/s);
   assert.match(serverSource, /\.main\s*\{[^}]*min-width:\s*0;/s);
 });
+
+test("preview article styles allow long links to wrap without page overflow", () => {
+  assert.match(serverSource, /\.article\s+p,\s*\.article\s+li,\s*\.article\s+blockquote,\s*\.article\s+td\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*\}/s);
+  assert.match(serverSource, /\.article\s+a\s*\{[^}]*overflow-wrap:\s*anywhere;[^}]*\}/s);
+});
